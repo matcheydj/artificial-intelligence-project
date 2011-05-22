@@ -10,7 +10,11 @@ import java.util.LinkedList;
 import ro.aligotec.ai.mas.*;
 
 public class FileParser {
-	public FileParser(){
+	
+	public static  boolean AgentsEconomicState = true;
+	public static Facilitator facilitator = null;
+	
+	private FileParser(){
 		
 	}
 	public static LinkedList<Agent> loadAgents(String fileName){
@@ -24,6 +28,7 @@ public class FileParser {
 		    	if(strLine.toLowerCase().indexOf("#agent")>=0){
 		    		Agent a = Agent.parse(strLine);
 		    		if(a != null){
+		    			a.setEconomicState(AgentsEconomicState);
 		    			agents.add(a);
 		    		}
 		    	}
