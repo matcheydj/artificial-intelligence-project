@@ -52,8 +52,9 @@ public class Task {
 	
 	/** Task retriever */
 	public static Task getTaskByName(String name){
+		//System.out.println("TASK - getTaskByName: " + name);
 		if(name == null || tasks.size()<1) return null;
-		
+		name = name.trim();
 		if(name.toLowerCase().indexOf("#task")>=0){
 			int end = name.toLowerCase().indexOf(")");
 			if(name.toLowerCase().indexOf(",")>0){
