@@ -13,6 +13,7 @@ import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
@@ -32,8 +33,8 @@ public class mainProject extends JFrame implements ActionListener {
 	private JTextField txtFile = new JTextField("Load a file...");
 	private JPanel agentsPanel = new JPanel(new FlowLayout());
 	
-	private JTextArea txtTasks = new JTextArea(15,15);
-	private JTextArea txtLogs = new JTextArea(15,15);
+	private JTextArea txtTasks = new JTextArea(">",15,15);
+	private JTextArea txtLogs = new JTextArea(">",15,15);
 	
 	private LinkedList<Agent> agents = new LinkedList<Agent>();
 	private LinkedList<Task> tasks = new LinkedList<Task>();
@@ -62,12 +63,14 @@ public class mainProject extends JFrame implements ActionListener {
 		//txtTasks.setText("TASKS:\n");
 		txtTasks.setWrapStyleWord(true);
 		txtTasks.setBackground(new Color(100,200,80));
-		centerPanel.add(txtTasks);
+		JScrollPane sArea1 = new JScrollPane(txtTasks);
+		centerPanel.add(sArea1);
 		//txtLogs.setText("LOGS:\n");
 		txtLogs.setAutoscrolls(true);
 		txtLogs.setWrapStyleWord(true);
 		txtLogs.setBackground(new Color(100,132,200));
-		centerPanel.add(txtLogs);
+		JScrollPane sArea2 = new JScrollPane(txtLogs);
+		centerPanel.add(sArea2);
 		
 		this.add(centerPanel, BorderLayout.CENTER);
 		//agentsPanel.removeAll();
@@ -194,8 +197,9 @@ public class mainProject extends JFrame implements ActionListener {
 					STRING.repeat("-", 100)+"\n" + FileParser.facilitator.logToString());
 		}else{
 			Agent a = Agent.getAgentByName(arg0.getActionCommand());
-			txtTasks.setText("INFO: \n" + STRING.repeat("-", 100) +"\n" +
-					a.toString() + "\n\n\n" + a.tasksToString());
+			txtTasks.setText("INFO: \n" + STRING.repeat("-", 100) +"\n" + a.toString() +
+					"\n\t BUDGET:\t" +a.getBudget() +"\n\t PROFIT:\t" + a.getProfit() + "\n" +
+					 "" + "\n\n\n" + a.tasksToString());
 			
 			txtLogs.setText("LOG OF " + a.getName() + ":\n" +
 					STRING.repeat("-", 100)+"\n" + a.logToString());

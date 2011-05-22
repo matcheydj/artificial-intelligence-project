@@ -6,8 +6,10 @@ public class TestingSubversion {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-
+		String s = "<a> Agent </a>Bsdsa";
+		System.out.println(s + "\n"
+				+ (s.toLowerCase().indexOf("<a>")+3) + "->"
+				+ s.toLowerCase().indexOf("</a>"));
 	}
 
 }

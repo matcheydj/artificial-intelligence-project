@@ -47,10 +47,12 @@ public class Facilitator implements Communication, Runnable{
 		logIt("Received messeage from " + 
 				query.getSender().getId() + "\n\tMessage Text [" +
 				query.getType() + "]: " + query.getText());
+		
 		switch(query.getType()){
-			case ACK: 	
+			case ACK:{
 				return 0;
-			case CANCEL:
+			}
+			case CANCEL:{
 				/**	AN AGENT CANCELs a TASK */
 				if(query.getText().toLowerCase().indexOf("#task")>=0){
 					String t = query.getText();
@@ -61,8 +63,9 @@ public class Facilitator implements Communication, Runnable{
 					cancelAssignment(t.substring(t.indexOf("("), end).trim());
 					return 0;
 				}
-				break;	
-			case CFP:
+				break;
+			}
+			case CFP:{
 				/**	AN AGENT CALLS FOR PROPOSALS TO EXECUTE THE TASK */
 				if(query.getText().toLowerCase().indexOf("#task")>=0){
 					String t = query.getText();
@@ -70,21 +73,44 @@ public class Facilitator implements Communication, Runnable{
 					Iterator<Agent> ia = agents.iterator();
 					while(ia.hasNext()){
 						Agent a = ia.next();
-							logIt("Sent an offer to " + a.getName() + ": " + t.toString());
-							a.receive(new Message(Message.Type.OFFER,
-									t.toString(),this,a));
+						logIt("Sent an offer to " + a.getName() + ": " + t.toString());
+						a.receive(new Message(Message.Type.OFFER,t.toString(),this,a));
 					}
 				}
 				break;
-			case REFUSE://TODO:
-				break;
-			case REGISTER:
-				if(query.getText().toLowerCase().indexOf("something")>=0){
+			}
+			case REFUSE:{
+				if(query.getText().toLowerCase().indexOf("can't do")>=0){
+					String tx = query.getText();
+					/*System.out.println(tx + "-" + (tx.toLowerCase().indexOf("<t>")+3)+
+							"->" + tx.toLowerCase().indexOf("</t>"));
+					*/
+					Task w = Task.getTaskByName(tx.substring(
+							tx.toLowerCase().indexOf("<t>")+3,
+							tx.toLowerCase().indexOf("</t>")));
 					
+					Agent a = Agent.getAgentByName(query.getSender().getId());
+					Agent requester = Agent.getAgentThatHasTheTask(w.getName());
+					
+					if(w == null) System.out.println("Facilitator error:" + query.getText());
+					
+					if((requester == null) || (a == null)) return -1;
+					requester.receive(new Message(
+							Message.Type.REFUSE,
+							"AnswerForCFP: <a>" + a.getName() + "</a> cannot execute <t>" + w.getName() + "</t>!",
+							this, requester));
 					return 0;
 				}
 				break;
-			case REQUEST:
+			}
+			case REGISTER:{
+				if(query.getText().toLowerCase().indexOf("something")>=0){
+					// NOT USED
+					return 0;
+				}
+				break;
+			}
+			case REQUEST:{
 				/** Can request: getTasks */
 				if(query.getText().toLowerCase().indexOf("gettasks")>=0){
 					query.getSender().receive(new Message(
@@ -95,7 +121,8 @@ public class Facilitator implements Communication, Runnable{
 					return 0;
 				}
 				break;
-			case INFO:
+			}
+			case INFO:{
 				/**	SUPPORTED INFO: listAllAgents */
 				if(query.getText().toLowerCase().indexOf("listallagents")>=0){
 					query.getSender().receive(new Message(
@@ -107,23 +134,26 @@ public class Facilitator implements Communication, Runnable{
 				}else
 				if(query.getText().toLowerCase().indexOf("price for:")>=0){
 					Task w = Task.getTaskByName(query.getText().substring(
-							query.getText().toLowerCase().indexOf("price for:"),
+							query.getText().toLowerCase().indexOf("price for:")+10,
 							query.getText().toLowerCase().indexOf(" is ")));
 					double p = Double.parseDouble(query.getText().substring(
 							query.getText().toLowerCase().indexOf(" is ") + 3,
 							query.getText().length()).trim());
+					if(w == null) System.out.println("Facilitator error:" + query.getText());
+					
 					Agent a = Agent.getAgentByName(query.getSender().getId());
 					Agent requester = Agent.getAgentThatHasTheTask(w.getName());
 					if((requester == null) || (a == null)) return -1;
 					
 					requester.receive(new Message(
 							Message.Type.INFO,
-							"AnswerForCFP: (" + a.getName() + ") can execute [" + w.getName() + "] for <" + p + ">",
-							this,
-							requester));
+							"AnswerForCFP: <a>" + a.getName() + "</a> can execute <t>"
+								+ w.getName() + "</t> for <p>" + p + "</p>",
+							this,requester));
 					return 0;
 				}
 				break;
+			}
 		}
 		return -1;
 	}
@@ -152,6 +182,9 @@ public class Facilitator implements Communication, Runnable{
 	
 	private void cancelAssignment(String taskName){
 		Task t = Task.getTaskByName(taskName);
+		if(t == null) {
+			System.out.println("Facilitator - ERROR cancelling the Task "+ taskName);
+		}
 		t.assignTo(null);
 	}
 	

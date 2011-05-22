@@ -15,7 +15,8 @@ public class Message {
 		REFUSE,
 		ALLOWED,
 		DENIED,
-		CFP	// call for proposals
+		CFP,		// call for proposals
+		DELEGATE	// give the task to other agent
 	};
 	
 	private Type type;

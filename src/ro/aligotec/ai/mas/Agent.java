@@ -46,6 +46,8 @@ public class Agent implements Communication, Runnable{
 	
 	private LinkedList<Goal> goals = new LinkedList<Goal>();
 	private LinkedList<Task> tasks = new LinkedList<Task>();
+	private boolean tmod = true;	//task modified - for synchronization
+	
 	private LinkedList<Ability> abilities = new LinkedList<Ability>();
 	private LinkedList<Task> completedTasks = new LinkedList<Task>();
 	
@@ -120,7 +122,7 @@ public class Agent implements Communication, Runnable{
 	/**
 	 * @return Budget of the Agent
 	 */
-	private double getBudget(){
+	public double getBudget(){
 		return this.budget;
 	}
 	
@@ -192,12 +194,13 @@ public class Agent implements Communication, Runnable{
 	}
 	
 	public boolean canDoTheTask(Task task){
-		if(task.getEstimateFor(this)>this.budget) return false;
+		//if(task.getEstimateFor(this)>this.budget) return false;
 		return (this.hasAbility(task.getRequiredAbility()));
 		
 	}
 	
-	public void setTaskCompleted(Task task){
+	public synchronized void setTaskCompleted(Task task){
+		
 		Iterator<Task> it = tasks.iterator();
 		
 		while(it.hasNext()){
@@ -207,6 +210,9 @@ public class Agent implements Communication, Runnable{
 				t.setCompleted(this);
 				balance += t.getReward() - t.getFinalCost();
 				budget -= t.getFinalCost();
+				this.logIt("I have completed " + task.getName() + 
+						" with cost " + t.getFinalCost() + 
+						" but rewarded with " + t.getReward());
 				it.remove();
 				return;
 			}
@@ -322,14 +328,37 @@ public class Agent implements Communication, Runnable{
 				query.getSender().getId() + "\n\tMessage Text [" +
 				query.getType() + "]: " + query.getText());
 		switch(query.getType()){
-			case ACK: 	
+			case ACK:{
 				return 0;
-			case CANCEL:
+			}
+			case CANCEL:{
 				return 0;
-			case OFFER:
+			}
+			case DELEGATE:{
 				if(query.getText().toLowerCase().indexOf("#task")>=0){
 					Task t = Task.getTaskByName(query.getText());
-					if((t != null) && this.hasAbility(t.getRequiredAbility())){
+					if(t == null) return -1;
+					if(this.canDoTheTask(t)){
+						query.getSender().receive(new Message(
+								Message.Type.ACK,"",this,query.getSender()));
+						this.setTaskCompleted(t);
+						//t.setCompleted(this);
+						tmod=true;
+						this.tasks.remove(t);
+						return 0;
+					}else{ //refuses the offer 
+						FileParser.facilitator.receive(new Message(
+								Message.Type.CANCEL,query.getText(),this,FileParser.facilitator));
+						return -1;
+					}
+				}
+				break;
+			}
+			case OFFER:{
+				if(query.getText().toLowerCase().indexOf("#task")>=0){
+					Task t = Task.getTaskByName(query.getText());
+					if(t == null) return -1;
+					if(this.hasAbility(t.getRequiredAbility())){
 						// sends back the price
 						query.getSender().receive(new Message(
 								Message.Type.INFO,
@@ -338,11 +367,24 @@ public class Agent implements Communication, Runnable{
 					}else{ //refuses the offer 
 						query.getSender().receive(new Message(
 								Message.Type.REFUSE,
-								"CAN'T DO!",this,query.getSender()));
+								"CAN'T DO <t>" + t.getName() + "</t>!",this,query.getSender()));
 					}
 				}
 				break;
-			case INFO:
+			}
+			case REFUSE:{
+				if(query.getText().toLowerCase().indexOf("answerforcfp:")>=0){
+					Task w = Task.getTaskByName(query.getText().substring(
+							query.getText().toLowerCase().indexOf("<t>")+3,
+							query.getText().toLowerCase().indexOf("</t>")).trim());
+					Agent a = Agent.getAgentByName(query.getText().substring(
+							query.getText().toLowerCase().indexOf("<a>")+3,
+							query.getText().toLowerCase().indexOf("</a>")).trim());
+					this.addOffer(new W(w, a, Double.MAX_VALUE));
+					return 0;
+				}
+			}
+			case INFO:{
 				if(query.getText().toLowerCase().indexOf("price for:")>=0){
 					Task w = Task.getTaskByName(query.getText().substring(
 							query.getText().toLowerCase().indexOf("price for:"),
@@ -364,18 +406,19 @@ public class Agent implements Communication, Runnable{
 				}else
 				if(query.getText().toLowerCase().indexOf("answerforcfp:")>=0){
 					Task w = Task.getTaskByName(query.getText().substring(
-							query.getText().toLowerCase().indexOf("[")+1,
-							query.getText().toLowerCase().indexOf("]")).trim());
+							query.getText().toLowerCase().indexOf("<t>")+3,
+							query.getText().toLowerCase().indexOf("</t>")).trim());
 					double p = Double.parseDouble(query.getText().substring(
-							query.getText().toLowerCase().indexOf("<") + 1,
-							query.getText().toLowerCase().indexOf(">")).trim());
+							query.getText().toLowerCase().indexOf("<p>") + 3,
+							query.getText().toLowerCase().indexOf("</p>")).trim());
 					Agent a = Agent.getAgentByName(query.getText().substring(
-							query.getText().toLowerCase().indexOf("(")+1,
-							query.getText().toLowerCase().indexOf(")")).trim());
+							query.getText().toLowerCase().indexOf("<a>")+3,
+							query.getText().toLowerCase().indexOf("</a>")).trim());
 					this.addOffer(new W(w, a, p));
 					return 0;
 				}
 				break;
+			}
 		}
 		return -1;
 	}
@@ -386,26 +429,36 @@ public class Agent implements Communication, Runnable{
 	
 	public void askForHelp(){
 		if(tasks.size()>0){
-			Iterator<Task> it = tasks.iterator();
-			while(it.hasNext()){
-				Task t = it.next();
-				if(ECONOMIC || this.hasAbility(t.getRequiredAbility())){
-					if(FileParser.facilitator == null){
-						// send to all agents except himself
-						Iterator<Agent> ia = agents.iterator();
-						while(ia.hasNext()){
-							Agent a = ia.next();
-							if(a != this){ 
-								logIt("Sent an offer to " + a.getName() + ": " + t.toString());
-								a.receive(new Message(Message.Type.OFFER,
-										t.toString(),this,a));
+			while(tmod){
+				tmod=false;
+				Iterator<Task> it = tasks.iterator();
+				while(it.hasNext()){
+					if(tmod){
+						break;
+					}
+					Task t = it.next();
+					if(ECONOMIC || this.hasAbility(t.getRequiredAbility())){
+						if(FileParser.facilitator == null){
+							// send to all agents except himself
+							Iterator<Agent> ia = agents.iterator();
+							while(ia.hasNext()){
+								Agent a = ia.next();
+								if(a != this){ 
+									logIt("Sent an offer to " + a.getName() + ": " + t.toString());
+									a.receive(new Message(Message.Type.OFFER,
+											t.toString(),this,a));
+								}else{//SAME... debugging...
+									logIt("Sent an offer to " + a.getName() + ": " + t.toString());
+									a.receive(new Message(Message.Type.OFFER,
+											t.toString(),this,a));
+								}
 							}
+						}else{
+							// send to facilitator only
+							logIt("Call for proposals through Facilitator: " + t.toString());
+							FileParser.facilitator.receive(new Message(Message.Type.CFP,
+									t.toString(),this,FileParser.facilitator));
 						}
-					}else{
-						// send to facilitator only
-						logIt("Call for proposals through Facilitator: " + t.toString());
-						FileParser.facilitator.receive(new Message(Message.Type.CFP,
-								t.toString(),this,FileParser.facilitator));
 					}
 				}
 			}
@@ -432,9 +485,61 @@ public class Agent implements Communication, Runnable{
 		}
 	}
 	
-	private boolean receivedAnswers(){
-		//TODO:
+	private boolean receivedAnswerFor(Task task){
+		if(offers.size()>0){
+			int noOfAns = 0, noOfAgents = agents.size();
+			Iterator<W> it = offers.iterator();
+			while(it.hasNext()){
+				W o = it.next();
+				if(o.what.equals(task)){
+					noOfAns++;
+				}
+			}
+			if(noOfAns >= noOfAgents - 1){
+				double bestPrice = Double.MAX_VALUE;
+				Agent winA = this;
+				Iterator<W> it2 = offers.iterator();
+				while(it2.hasNext()){
+					W o = it2.next();
+					if(o.what.equals(task)){
+						if(o.price<bestPrice){
+							winA = o.who;
+						}
+					}
+				}
+				if(winA==this){
+					this.logIt("Best price for " + task.getName() + " is mine!");
+					this.setTaskCompleted(task);
+				}else{
+					this.logIt("Best price for " + task.getName() + " is " + winA.getName() +"'s!");
+					tasks.remove(task);
+					task.assignTo(winA);
+					if(winA.receive(new Message(Message.Type.DELEGATE,task.toString(),this,winA)) <0){
+						FileParser.facilitator.receive(new Message(
+								Message.Type.CANCEL,task.toString(),this,FileParser.facilitator));
+					}
+				}
+				return true;
+			}else{
+				return false;
+			}
+		}
 		return false;
+	}
+	private boolean receivedAnswers(){
+		if(tasks.size()>0){
+			Iterator<Task> it = tasks.iterator();
+			while(it.hasNext()){
+				Task t = it.next();
+				if(!receivedAnswerFor(t)){
+					return false;
+				}else{
+					//TODO:
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 	
 	
@@ -455,7 +560,9 @@ public class Agent implements Communication, Runnable{
 		return r.toString();
 	}
 	private void logIt(String what){
-		log.add(logTime() + "| " + what);
+		String x = logTime() + "| " + what;
+		log.add(x);
+		System.out.println(x);
 	}
 	private String logTime(){
 		return (new java.sql.Timestamp((new java.util.Date()).getTime())).toString();
