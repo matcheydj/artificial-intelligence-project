@@ -14,7 +14,8 @@ public class Message {
 		REQUEST,
 		REFUSE,
 		ALLOWED,
-		DENIED
+		DENIED,
+		CFP	// call for proposals
 	};
 	
 	private Type type;

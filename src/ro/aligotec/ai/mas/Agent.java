@@ -6,6 +6,7 @@ import java.util.List;
 
 import ro.aligotec.ai.mas.comunication.Communication;
 import ro.aligotec.ai.mas.comunication.Message;
+import ro.aligotec.ai.utils.FileParser;
 import ro.aligotec.ai.utils.STRING;
 
 /**
@@ -172,6 +173,23 @@ public class Agent implements Communication, Runnable{
 		}
 		this.tasks.add(task);
 	}
+	public boolean hastTask(String task){
+		return hasTask(Task.getTaskByName(task));
+	}
+	public boolean hasTask(Task task){
+		return tasks.contains(task);
+	}
+	
+	public static Agent getAgentThatHasTheTask(String task){
+		if(agents.size()>0){
+			Iterator<Agent> it = agents.iterator();
+			while(it.hasNext()){
+				Agent a = it.next();
+				if(a.hastTask(task)) return a;
+			}
+		}
+		return null;
+	}
 	
 	public boolean canDoTheTask(Task task){
 		if(task.getEstimateFor(this)>this.budget) return false;
@@ -205,7 +223,7 @@ public class Agent implements Communication, Runnable{
 				r.append("\n>>> " + it.next().toString());
 			}
 		}else{
-			r.append("NONE");
+			r.append("\nNONE");
 		}
 		return r.toString();
 	}
@@ -328,19 +346,33 @@ public class Agent implements Communication, Runnable{
 				if(query.getText().toLowerCase().indexOf("price for:")>=0){
 					Task w = Task.getTaskByName(query.getText().substring(
 							query.getText().toLowerCase().indexOf("price for:"),
-							query.getText().toLowerCase().indexOf(" IS ")));
+							query.getText().toLowerCase().indexOf(" is ")));
 					double p = Double.parseDouble(query.getText().substring(
-							query.getText().toLowerCase().indexOf(" IS "),
-							query.getText().length()));
+							query.getText().toLowerCase().indexOf(" is ") + 3,
+							query.getText().length()).trim());
 					Agent a = Agent.getAgentByName(query.getSender().getId());
 					this.addOffer(new W(w, a, p));
-				}
+					return 0;
+				}else
 				if(query.getText().toLowerCase().indexOf("agentslist:")>=0){
 					//agent already has access to list of agents
 					/* Basically the agent should make himself a list with
 					 * agents and with Agent.getAgentByName(name) populate
 					 * this list - LinkedList<Agent> agents */
 					System.out.println("Agent " + this.name + " received the list of all agents.");
+					return 0;
+				}else
+				if(query.getText().toLowerCase().indexOf("answerforcfp:")>=0){
+					Task w = Task.getTaskByName(query.getText().substring(
+							query.getText().toLowerCase().indexOf("[")+1,
+							query.getText().toLowerCase().indexOf("]")).trim());
+					double p = Double.parseDouble(query.getText().substring(
+							query.getText().toLowerCase().indexOf("<") + 1,
+							query.getText().toLowerCase().indexOf(">")).trim());
+					Agent a = Agent.getAgentByName(query.getText().substring(
+							query.getText().toLowerCase().indexOf("(")+1,
+							query.getText().toLowerCase().indexOf(")")).trim());
+					this.addOffer(new W(w, a, p));
 					return 0;
 				}
 				break;
@@ -358,26 +390,36 @@ public class Agent implements Communication, Runnable{
 			while(it.hasNext()){
 				Task t = it.next();
 				if(ECONOMIC || this.hasAbility(t.getRequiredAbility())){
-					Iterator<Agent> ia = agents.iterator();
-					while(ia.hasNext()){
-						Agent a = ia.next();
-						logIt("Sent an offer to " + a.getName() + ": " + t.toString());
-						a.receive(new Message(Message.Type.OFFER,
-								t.toString(),this,a));
+					if(FileParser.facilitator == null){
+						// send to all agents except himself
+						Iterator<Agent> ia = agents.iterator();
+						while(ia.hasNext()){
+							Agent a = ia.next();
+							if(a != this){ 
+								logIt("Sent an offer to " + a.getName() + ": " + t.toString());
+								a.receive(new Message(Message.Type.OFFER,
+										t.toString(),this,a));
+							}
+						}
+					}else{
+						// send to facilitator only
+						logIt("Call for proposals through Facilitator: " + t.toString());
+						FileParser.facilitator.receive(new Message(Message.Type.CFP,
+								t.toString(),this,FileParser.facilitator));
 					}
 				}
 			}
 		}
 	}
 	
-	private boolean hasTaksToComplete(){
+	private boolean hasTasksToComplete(){
 		return (tasks.size()>0);
 	}
 	
 	@Override
 	public void run() {
 		logIt("Started run");
-		while(hasTaksToComplete()){
+		while(hasTasksToComplete()){
 			askForHelp();
 			while(!receivedAnswers()){
 				sleep();
@@ -403,9 +445,6 @@ public class Agent implements Communication, Runnable{
 			e.printStackTrace();
 		}
 	}
-	
-	
-	
 	public String logToString(){
 		Iterator<String> it = log.iterator();
 		StringBuffer r = new StringBuffer();
@@ -415,7 +454,6 @@ public class Agent implements Communication, Runnable{
 		}
 		return r.toString();
 	}
-	
 	private void logIt(String what){
 		log.add(logTime() + "| " + what);
 	}

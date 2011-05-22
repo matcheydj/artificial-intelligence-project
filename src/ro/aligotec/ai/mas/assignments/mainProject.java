@@ -76,8 +76,15 @@ public class mainProject extends JFrame implements ActionListener {
 	}
 	
 	private void addAgents(){
-		if(agents.size()<1) return;
 		agentsPanel.removeAll();
+		if(FileParser.facilitator != null){
+			JButton btnF = new JButton("Facilitator");
+			btnF.setActionCommand("Facilitator");
+			btnF.addActionListener(this);
+			agentsPanel.add(btnF);
+		}
+		
+		if(agents.size()<1) return;
 		Iterator<Agent> it = agents.iterator();
 		while(it.hasNext()){
 			Agent a = it.next();
@@ -118,7 +125,10 @@ public class mainProject extends JFrame implements ActionListener {
 		}
 	}
 	private void createThreads(){
-		if(threads.size()>0){
+		if(agents.size()>0){
+			if(FileParser.facilitator != null){
+				threads.add(new Thread(FileParser.facilitator, "Facilitator"));
+			}
 			Iterator<Agent> it = agents.iterator();
 			while(it.hasNext()){
 				Agent a = it.next();
@@ -144,22 +154,44 @@ public class mainProject extends JFrame implements ActionListener {
 			//agentsPanel.removeAll();
 			final JFileChooser fc = new JFileChooser();
             fc.showOpenDialog(this);
+            if(fc.getSelectedFile() == null) return;
             txtFile.setText(fc.getSelectedFile().getAbsolutePath());
+            //_________________________________________________________________
+            //						SETTINGS:
+            //_________________________________________________________________
+            //
+            //	ECONOMIC = will try to find the lowest cost for a task
+            //	FACILITATOR = if null will negotiate directly with other agents
+            //
+            //_________________________________________________________________
+            FileParser.AgentsEconomicState = true; 					// or false
+            /** - */	FileParser.facilitator = new Facilitator();	// or null
             agents = FileParser.loadAgents(txtFile.getText());
             tasks = FileParser.loadTasks(txtFile.getText());
+            /** - */	FileParser.facilitator.setAgents(agents);
+            /** - */	FileParser.facilitator.setTasks(tasks);
+            //_________________________________________________________________
             
             txtTasks.setText("");
             addAgents();
-            txtLogs.setText("File loaded: " + txtFile.getText());
+            txtLogs.setText("File loaded: " + txtFile.getText() +
+            		"\n\t" + agents.size() + " agents loaded" + 
+            		"\n\t" + tasks.size() + " tasks loaded" +
+            		"\nDone. :)");
             /* */
             Iterator<Task> it = tasks.iterator();
             while(it.hasNext()){
             	System.out.println("Task loaded: " + it.next().toString());
             }
             createThreads();
-            startAllThreads();
+            txtLogs.setText(txtLogs.getText() + "\n\n\t threads created: " + threads.size());
 		}else if(arg0.getActionCommand().equalsIgnoreCase("RUN")){
-			
+			startAllThreads();
+		}else if(arg0.getActionCommand().equalsIgnoreCase("Facilitator")){
+			txtTasks.setText("INFO: \n" + STRING.repeat("-", 100) +"\n" +
+					"FACILITATOR" + "\n\n");
+			txtLogs.setText("LOG OF FACILITATOR:\n" +
+					STRING.repeat("-", 100)+"\n" + FileParser.facilitator.logToString());
 		}else{
 			Agent a = Agent.getAgentByName(arg0.getActionCommand());
 			txtTasks.setText("INFO: \n" + STRING.repeat("-", 100) +"\n" +
